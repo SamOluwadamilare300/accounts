@@ -1,17 +1,31 @@
-FROM golang:1.15-buster as builder
+# Build stage
+FROM golang:1.25-alpine AS builder
+
 WORKDIR /go/src/github.com/moov-io/accounts
-RUN apt-get update && apt-get install make gcc g++
-COPY . .
+
+ENV CGO_ENABLED=0
+ENV GOOS=linux
+ENV GOARCH=amd64
+ENV GONOSUMDB=*
+ENV DEFAULT_ROUTING_NUMBER=221475786
+
+COPY go.mod go.sum ./
 RUN go mod download
-RUN make build
 
-FROM debian:10
-MAINTAINER Moov <support@moov.io>
+COPY . .
+RUN go build -o /bin/server ./cmd/server/
 
-RUN apt-get update && apt-get install -y ca-certificates
-COPY --from=builder /go/src/github.com/moov-io/accounts/bin/server /bin/server
+# Final stage
+FROM alpine:3.19
 
-# USER moov
-EXPOSE 8080
-EXPOSE 9090
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /app
+
+COPY --from=builder /bin/server /bin/server
+
+EXPOSE 8085 9095
+
+ENV DEFAULT_ROUTING_NUMBER=221475786
+
 ENTRYPOINT ["/bin/server"]

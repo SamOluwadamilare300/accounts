@@ -19,8 +19,8 @@ import (
 	"github.com/go-kit/kit/log"
 	kitprom "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/lopezator/migrator"
-	"github.com/mattn/go-sqlite3"
 	stdprom "github.com/prometheus/client_golang/prometheus"
+	_ "modernc.org/sqlite"
 )
 
 var (
@@ -70,12 +70,10 @@ func (s *sqlite) Connect(ctx context.Context) (*sql.DB, error) {
 	}
 
 	sqliteVersionLogOnce.Do(func() {
-		if v, _, _ := sqlite3.Version(); v != "" {
-			s.logger.Log("main", fmt.Sprintf("sqlite version %s", v))
-		}
+		s.logger.Log("main", "sqlite driver: modernc.org/sqlite (pure-Go)")
 	})
 
-	db, err := sql.Open("sqlite3", s.path)
+	db, err := sql.Open("sqlite", s.path)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +100,6 @@ func (s *sqlite) Connect(ctx context.Context) (*sql.DB, error) {
 			case <-t.C:
 				recordStatus(s.connections, db)
 			}
-
 		}
 	}()
 
@@ -176,9 +173,5 @@ func CreateTestSqliteDB(t *testing.T) *TestSQLiteDB {
 // SqliteUniqueViolation returns true when the provided error matches the SQLite error
 // for duplicate entries (violating a unique table constraint).
 func SqliteUniqueViolation(err error) bool {
-	match := strings.Contains(err.Error(), "UNIQUE constraint failed")
-	if e, ok := err.(sqlite3.Error); ok {
-		return match || e.Code == sqlite3.ErrConstraint
-	}
-	return match
+	return strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
